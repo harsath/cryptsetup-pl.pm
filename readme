@@ -3,3 +3,22 @@
 
 	The interface to work this uses keyfiles, which is encrypted-in-rest on the server with AES-256
 	and the encryption key is derived from user's passphrase using PBKDF2
+
+	It's primarily written for providing Fully-Encrypted SFTP/Web-Hosting/Cloud storage solution, where he 
+	user's files gets stored in a LUKS image. It's safe for both user and the administrator with 
+	additional benefit of protection from key-disclosure-laws.
+
+	Administrator will not store clear-text version of any user's passphrase, instead the LUKS file
+	containers are encrypted with a key-file and the key-file itself is encrypted with
+	Salted AES-256-CBC PBKDF2 SHA512-digest encryption scheme.
+
+	Remember that, even if a person/authority gets access to the server when the LUKS
+	devices are hot(mounted), a user cannot be fingerprinted to a particular hot LUKS device mount-point
+	on the server, since the implementation uses MD5-digest of the username UNLESS the person/authority 
+	has access to your username, in which case they can produce a MD5-digest of that username to
+	fingerprint the user's LUKS container and mount point. The clear-text version of 
+	keyfiles(temp for mounting a LUKS device) is shredded with 10 passes + overwrite with zeros.
+
+	Even during encrypted-on-rest, the LUKS images cannot be fingerprinted to a particular user, since again
+	we use the digested version(again, the caveat as mentioned above) and the original data cannot 
+	be retrieved if the LUKS image is NOT hot.
