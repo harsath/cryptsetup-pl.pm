@@ -1,0 +1,5 @@
+	Linux cryptsetup Perl interface for creating/managing crypt/LUKS devices in programming interface
+	It's written for personal purpose for Web/SFTP/Mail hosting services.
+
+	The interface to work this uses keyfiles, which is encrypted-in-rest on the server with AES-256
+	and the encryption key is derived from user's passphrase using PBKDF2
