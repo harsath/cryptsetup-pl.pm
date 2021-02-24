@@ -124,6 +124,9 @@ sub crypt_get_user_dir_mount_path{
 	"$mount_root/$user_hash";
 }
 
+=begin crypt_nuke_luks_device_and_key
+	Used only when if we need to nuke a user's LUKS device + encrypted keyfile.
+=cut
 sub crypt_nuke_luks_device_and_key{
 	`$shred -uzn 10 $path_to_user_luks_device`;
 	`$shred -uzn 10 $path_to_user_keyfile`;
@@ -131,6 +134,9 @@ sub crypt_nuke_luks_device_and_key{
 	 true;
 }
 
+=begin crypt_unmount_crypt_device
+	Unmounts the mapper special file from the mount root and the LUKS device
+=cut
 sub crypt_unmount_crypt_device{
 	if($is_mounted){
 		`sudo umount $mount_root/$user_hash`;
@@ -158,6 +164,10 @@ sub crypt_decrypt_keyfile{
 	true;
 }
 
+=begin crypt_nuke_cleartext_keyfile
+	"Nukes" the clear text version of the keyfile in the temp dir.
+	This is usually called in places where we decrypt the keyfile for mounting/other purpose.
+=cut
 sub crypt_nuke_cleartext_keyfile{
 	if(-e $cleartext_tmp_keyfile_path)
 	{ `$shred -uzn 10 $cleartext_tmp_keyfile_path`; }
@@ -169,6 +179,9 @@ sub _is_defined{
 	{ print $error_msg."\n"; exit(2); }
 }
 
+=begin _generate_keyfile
+	Args:	1. user's passphrase to AES encrypt the keyfile of lUKS device
+=cut
 sub _generate_keyfile{
 	my $key_passphrase = shift;
 	unless(-e $path_to_user_keyfile){
