@@ -14,27 +14,29 @@ my $path_to_luks_devices;
 my $path_to_user_luks_device;
 my $path_to_user_keyfile;
 my $path_to_keyfile_dir;
-my $key_file_out_fullpath = "/tmp/$user_hash";
+my $key_file_out_fullpath;
 my $user_hash;
 my $mount_root;
 my $luks_container_size; #value in MB
 my $is_mounted = false;
 
-my $openssl = `which openssl`; _is_defined($openssl, "[ERROR] openssl not found");
-my $cryptsetup = `which cryptsetup`; _is_defined($cryptsetup, "[ERROR] cryptsetup not found");
-my $shred = `which shred`; _is_defined($shred, "[ERROR] shred not found");
-my $dd = `which dd`; _is_defined($dd, "[ERROR] dd not found");
-my $blkid = `which blkid`; _is_defined($blkid, "[ERROR] blkid not found");
+chomp(my $openssl = `which openssl`); _is_defined($openssl, "[ERROR] openssl not found");
+chomp(my $cryptsetup = `which cryptsetup`); _is_defined($cryptsetup, "[ERROR] cryptsetup not found");
+chomp(my $shred = `which shred`); _is_defined($shred, "[ERROR] shred not found");
+chomp(my $dd = `which dd`); _is_defined($dd, "[ERROR] dd not found");
+chomp(my $blkid = `which blkid`); _is_defined($blkid, "[ERROR] blkid not found");
 
 =begin crypt_init_args
 	Args:	1. username, 2. size of LUKS container, 3. path to root LUKS devices dir,
-	        4. path to root keyfiles dir, 5. path to mount LUKS devices
+	        4. path to root keyfiles dir, 5. path to mount root of LUKS devices
 =cut
 sub crypt_init{
 	($user_name, $luks_container_size, $path_to_luks_devices, $path_to_keyfile_dir, $mount_root) = @_;
 	$user_hash = crypt_get_username_hash($user_name);
-	$path_to_user_luks_device = "$path_to_luks_devices/$user_hash";
+	$path_to_user_luks_device = "$path_to_luks_devices/$user_hash.bin";
 	$path_to_user_keyfile = "$path_to_keyfile_dir/$user_hash";
+	$key_file_out_fullpath = "/tmp/$user_hash.key";
+	$key_file_in_fullpath = "$path_to_keyfile_dir/$user_hash.key";
 	true;
 }
 
@@ -45,8 +47,8 @@ sub crypt_create_luks_device{
 	my $keyfile_passphrase = @_;
 	if(-e $path_to_user_luks_device)
 	{ return false; }
-	`$dd if=/dev/zero of=$path_to_user_luks_device bs=1M count=$luks_container_size`;
-	_generate_keyfile();
+	`dd if=/dev/zero of=$path_to_user_luks_device bs=1M count=$luks_container_size`;
+	_generate_keyfile($keyfile_passphrase);
 	`sudo $cryptsetup -q luksFormat $path_to_user_luks_device $path_to_user_keyfile`;
 	true;
 }
@@ -146,7 +148,6 @@ sub crypt_decrypt_keyfile{
 		`$shred -uzn 10 $key_file_out_fullpath`;
 		`touch $key_file_out_fullpath && chmod 700 $key_file_out_fullpath`;
 	}
-	$key_file_in_fullpath = "$path_to_keyfile_dir/$user_hash";
 
 	unless(-e $key_file_in_fullpath){
 		print "No such keyfile";
@@ -164,21 +165,21 @@ sub crypt_nuke_cleartext_keyfile{
 
 sub _is_defined{
 	my ($var_to_check, $error_msg) = @_;
-	unless(defined $var_to_check && $var_to_check ne '')
-	{ print $error_msg."\n"; exit 2; }
+	unless(defined $var_to_check || $var_to_check ne '')
+	{ print $error_msg."\n"; exit(2); }
 }
 
 sub _generate_keyfile{
 	my $key_passphrase = @_;
 	unless(-e $key_file_in_fullpath){
-		`touch $key_file_out_fullpath && chmod 700 $key_file_out_fullpath`;
-		`$dd bs=512 count=1 if=/dev/urandom of=$key_file_out_fullpath`;
-		`$openssl enc -e -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -salt -in $key_file_out_fullpath
-		 -out $key_file_in_fullpath -pass pass:$key_passphrase`;
+		`touch $key_file_out_fullpath`;
+		print "name: $key_file_out_fullpath\n";
+		`$dd if=/dev/urandom of=$key_file_out_fullpath bs=512 count=1 && chmod 700 $key_file_out_fullpath`;
+		`$openssl enc -e -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -salt -in $key_file_out_fullpath -out $key_file_in_fullpath -pass pass:$key_passphrase`;
 		 crypt_nuke_cleartext_keyfile();
 	}else{
 		`$shred -uzn 10 $key_file_in_fullpath`;
-		_generate_keyfile();
+		_generate_keyfile($key_passphrase);
 	}
 }
 
