@@ -14,7 +14,7 @@ my $path_to_luks_devices;
 my $path_to_user_luks_device;
 my $path_to_user_keyfile;
 my $path_to_keyfile_dir;
-my $key_file_out_fullpath;
+my $cleartext_tmp_keyfile_path;
 my $user_hash;
 my $mount_root;
 my $luks_container_size; #value in MB
@@ -34,9 +34,8 @@ sub crypt_init{
 	($user_name, $luks_container_size, $path_to_luks_devices, $path_to_keyfile_dir, $mount_root) = @_;
 	$user_hash = crypt_get_username_hash($user_name);
 	$path_to_user_luks_device = "$path_to_luks_devices/$user_hash.bin";
-	$path_to_user_keyfile = "$path_to_keyfile_dir/$user_hash";
-	$key_file_out_fullpath = "/tmp/$user_hash.key";
-	$key_file_in_fullpath = "$path_to_keyfile_dir/$user_hash.key";
+	$path_to_user_keyfile = "$path_to_keyfile_dir/$user_hash.key";
+	$cleartext_tmp_keyfile_path = "/tmp/$user_hash.key";
 	true;
 }
 
@@ -44,12 +43,13 @@ sub crypt_init{
 	Args:	1. passphrase for the keyfile which will be encrypted by AES-256-CBC and stored on server
 =cut
 sub crypt_create_luks_device{
-	my $keyfile_passphrase = @_;
+	my $keyfile_passphrase = shift;
 	if(-e $path_to_user_luks_device)
 	{ return false; }
-	`dd if=/dev/zero of=$path_to_user_luks_device bs=1M count=$luks_container_size`;
+	`$dd if=/dev/zero of=$path_to_user_luks_device bs=1M count=$luks_container_size 1>/dev/null 2>&1`;
 	_generate_keyfile($keyfile_passphrase);
-	`sudo $cryptsetup -q luksFormat $path_to_user_luks_device $path_to_user_keyfile`;
+	`sudo $cryptsetup -q luksFormat $path_to_user_luks_device $cleartext_tmp_keyfile_path`;
+	crypt_nuke_cleartext_keyfile();
 	true;
 }
 
@@ -57,24 +57,27 @@ sub crypt_create_luks_device{
 	Args:	1. Is the LUKS device/image mounting for first time? Because If so, we need to
 	 	   create a File-System on the fresh LUKS block device.
 =cut
-sub crypt_mount_crypt_device{
-	my $mounting_first_time = @_;
-	unless(-e $path_to_user_luks_device && -e $path_to_user_keyfile && 
-	       `file $path_to_user_luks_device | awk '{print \$2}'` eq "LUKS")
+sub crypt_mount_luks_device{
+	my ($mounting_first_time, $keyfile_passphrase) = @_;
+	if(!(-e $path_to_user_luks_device) && !(-e $path_to_user_keyfile) && 
+	       `file $path_to_user_luks_device | awk '{print \$2}'` ne "LUKS")
 	{ return false; }
 
+	crypt_decrypt_keyfile($keyfile_passphrase);
 	unless($mounting_first_time){
-		`sudo $cryptsetup -q luksOpen $path_to_user_luks_device $user_hash --key-file $path_to_user_keyfile`;
+		`sudo $cryptsetup -q luksOpen $path_to_user_luks_device $user_hash --key-file $cleartext_tmp_keyfile_path`;
 	}else{
-		`sudo $cryptsetup -q luksOpen $path_to_user_luks_device $user_hash --key-file $path_to_user_keyfile`;
-		`sudo mkfs.ext4 /dev/mapper/$user_hash`;
+		`sudo $cryptsetup -q luksOpen $path_to_user_luks_device $user_hash --key-file $cleartext_tmp_keyfile_path`;
+		`sudo mkfs.ext4 /dev/mapper/$user_hash 1>/dev/null 2>&1`;
 	}
+	crypt_nuke_cleartext_keyfile();
 
 	my $user_mapper_mount_path = "$mount_root/$user_hash";
 	unless(-d $user_mapper_mount_path)
 	{ `mkdir -p $user_mapper_mount_path`; }
-	`sudo mount /dev/mapper/$user_hash $user_mapper_mount_path $path_to_`; $is_mounted = true;
-	unless(_is_defined($ENV{USER}), "[ERROR] \$ENV{USER} not found/undefined"){ return false; }
+	`sudo mount /dev/mapper/$user_hash $user_mapper_mount_path`; $is_mounted = true;
+	unless(_is_defined($ENV{USER}), "[ERROR] \$ENV{USER} not found/undefined")
+	{ return false; }
 	`sudo chown -R $ENV{USER} $user_mapper_mount_path`;
 	true;
 }
@@ -106,11 +109,11 @@ sub crypt_check_already_mount{
 =begin crypt_get_keyfile_out_path
 =cut
 sub crypt_get_keyfile_out_path{
-	$key_file_out_fullpath;
+	$cleartext_tmp_keyfile_path;
 }
 
 sub crypt_get_keyfile_in_path{
-	$key_file_in_fullpath;
+	$path_to_user_keyfile;
 }
 
 sub crypt_get_user_luks_device_path{
@@ -123,7 +126,7 @@ sub crypt_get_user_dir_mount_path{
 
 sub crypt_nuke_luks_device_and_key{
 	`$shred -uzn 10 $path_to_user_luks_device`;
-	`$shred -uzn 10 $key_file_in_fullpath`;
+	`$shred -uzn 10 $path_to_user_keyfile`;
 	 crypt_nuke_cleartext_keyfile();
 	 true;
 }
@@ -142,25 +145,22 @@ sub crypt_unmount_crypt_device{
 	Once done, we will nuke the clear-text version
 =cut
 sub crypt_decrypt_keyfile{
-	my ($user_passphrase) = @_;
-	my $iter = 100000;
-	if(-e $key_file_out_fullpath){
-		`$shred -uzn 10 $key_file_out_fullpath`;
-		`touch $key_file_out_fullpath && chmod 700 $key_file_out_fullpath`;
+	my ($user_passphrase) = shift;
+	if(-e $cleartext_tmp_keyfile_path){
+		`$shred -uzn 10 $cleartext_tmp_keyfile_path`;
 	}
 
-	unless(-e $key_file_in_fullpath){
+	unless(-e $path_to_user_keyfile){
 		print "No such keyfile";
 		return false;
 	}
-
-	`$openssl enc -d -aes-256-cbc -pbkdf2 -md sha512 -in $key_file_in_fullpath -out $key_file_out_fullpath`;
+	`$openssl aes-256-cbc -d -salt -pbkdf2 -in $path_to_user_keyfile -out $cleartext_tmp_keyfile_path -pass pass:"$user_passphrase"`;
 	true;
 }
 
 sub crypt_nuke_cleartext_keyfile{
-	if(-e $key_file_out_fullpath)
-	{ `$shred -uzn 10 $key_file_out_fullpath`; }
+	if(-e $cleartext_tmp_keyfile_path)
+	{ `$shred -uzn 10 $cleartext_tmp_keyfile_path`; }
 }
 
 sub _is_defined{
@@ -170,15 +170,12 @@ sub _is_defined{
 }
 
 sub _generate_keyfile{
-	my $key_passphrase = @_;
-	unless(-e $key_file_in_fullpath){
-		`touch $key_file_out_fullpath`;
-		print "name: $key_file_out_fullpath\n";
-		`$dd if=/dev/urandom of=$key_file_out_fullpath bs=512 count=1 && chmod 700 $key_file_out_fullpath`;
-		`$openssl enc -e -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -salt -in $key_file_out_fullpath -out $key_file_in_fullpath -pass pass:$key_passphrase`;
-		 crypt_nuke_cleartext_keyfile();
+	my $key_passphrase = shift;
+	unless(-e $path_to_user_keyfile){
+		`$dd if=/dev/urandom of=$cleartext_tmp_keyfile_path bs=512 count=1 1>/dev/null 2>&1`;
+		`$openssl aes-256-cbc -salt -pbkdf2 -in $cleartext_tmp_keyfile_path -out $path_to_user_keyfile -pass pass:"$key_passphrase"`;
 	}else{
-		`$shred -uzn 10 $key_file_in_fullpath`;
+		`$shred -uzn 10 $path_to_user_keyfile`;
 		_generate_keyfile($key_passphrase);
 	}
 }
