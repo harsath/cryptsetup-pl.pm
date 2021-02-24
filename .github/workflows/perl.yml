@@ -1,0 +1,31 @@
+name: Linux
+on: [push, pull_request]
+env:
+        BUILD_TYPE: Release
+
+jobs:
+        build:
+                name: ${{ matrix.config.name }}
+                runs-on: ${{ matrix.config.os }}
+                strategy:
+                        fail-fast: false
+                        matrix:
+                                config:
+                                        - {
+                                                name: "Ubuntu Linux", artifact: "Linux.7z",
+                                                os: ubuntu-latest,
+                                          }
+                steps:
+                        - uses: actions/checkout@v1
+                        - name: Print env
+                          run: |
+                                echo github.event.action: ${{ github.event.action }}
+                                echo github.event_name: ${{ github.event_name }}
+                        - name: Installing dependencies for Ubuntu Linux
+                          shell: bash
+                          run: |
+                                perl ./ci/install_dependency.pl
+                        - name: Configuring and Testing
+                          shell: bash
+                          run: |
+                                  perl ./ci/run_tests.pl

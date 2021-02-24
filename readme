@@ -22,3 +22,5 @@
 	Even during encrypted-on-rest, the LUKS images cannot be fingerprinted to a particular user, since again
 	we use the digested version(again, the caveat as mentioned above) and the original data cannot 
 	be retrieved if the LUKS image is NOT hot.
+
+	This repo/module is under active dev/testing in a private live environment.
