@@ -8,6 +8,8 @@ chomp(my $dd = `which dd`); _is_defined($dd, "[ERROR] dd not found");
 chomp(my $blkid = `which blkid`); _is_defined($blkid, "[ERROR] blkid not found");
 
 =begin crypt_init_args
+	Initializes the Hash-Ref with various fields for the other handlers to make use of.
+	Must be at the start of any operation over a LUKS device.
 =cut
 sub crypt_init{
 	my $cryptHashRef = shift;	
@@ -21,6 +23,9 @@ sub crypt_init{
 }
 
 =begin crypt_create_luks_device
+	Creates a new LUKS device with key-file supplied by the user from HashRef
+	The key-file is AES-256-CBC encrypted at the server and unlocked by a user's passphrase
+	If already exists, it returns
 =cut
 sub crypt_create_luks_device{
 	my $cryptHashRef = shift;
@@ -36,6 +41,8 @@ sub crypt_create_luks_device{
 }
 
 =begin crypt_mount_crypt_device
+	Mount a block file of type LUKS device from the Luks-Device-Root given in HashRef
+	If not found, it returns false(0)
 =cut
 sub crypt_mount_luks_device{
 	my $cryptHashRef = shift;
@@ -76,8 +83,8 @@ sub crypt_get_uuid_device{
 }
 
 =begin crypt_get_username_hash
-	Arg:	1. Plain user name string
-	Returns the MD5-digest of the given user name's MD5-digest;
+	Returns the MD5-digest of the given user name's MD5-digest
+	(Internally we use MD5-digests to keep track of a user's session)
 =cut
 sub crypt_get_username_hash{
 	md5_hex($_);
@@ -142,7 +149,7 @@ sub _is_defined{
 }
 
 =begin _generate_keyfile
-	Args:	1. user's passphrase to AES encrypt the keyfile of lUKS device
+	Encrypt the key-file to a LUKS device with Salted AES-256-CBC PBKDF2 SHA512-digest encryption scheme.
 =cut
 sub _generate_keyfile{
 	my $cryptHashRef = shift;
