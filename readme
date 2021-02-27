@@ -23,4 +23,5 @@
 	we use the digested version(again, the caveat as mentioned above) and the original data cannot 
 	be retrieved if the LUKS image is NOT hot.
 
-	This repo/module is under active dev/testing in a private live environment.
+	This repo/module is under active dev/testing. This module is specifically written to work with an
+	fully encrypted shared file-hosting application for my internal project.
