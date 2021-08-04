@@ -24,4 +24,6 @@
 	be retrieved if the LUKS image is NOT hot.
 
 	This repo/module is under active dev/testing. This module is specifically written to work with an
-	fully encrypted shared file-hosting application for my internal project.
+	fully encrypted shared file-hosting application for my internal project. 
+	It's never written with an intention for public use.
+	But feel free to play around.
