@@ -1,29 +1,5 @@
-	Linux cryptsetup Perl interface for creating/managing crypt/LUKS devices in programming interface
-	It's written for personal purpose for Web/SFTP/Mail hosting services.
+Linux cryptsetup Perl interface for creating/managing LUKS devices.
 
-	The interface works with a keyfile, unique to users, which is encrypted-in-rest on the server with AES-256
-	and the encryption key is derived from user's passphrase using PBKDF2
+It's primarily designed for a fully-encrypted SFTP, web-hosting, or cloud storage solution, where files are stored in a LUKS-encrypted image. This setup uses dm-crypt in plain mode to ensure security for both users and administrators, with the added benefit of plausible deniability and protection against key-disclosure laws.
 
-	It's primarily written for providing Fully-Encrypted SFTP/Web-Hosting/Cloud storage solution, where the 
-	user's files gets stored in a LUKS image. It's safe for both user and the administrator with 
-	additional benefit of protection from key-disclosure-laws.
-
-	Administrator will not store clear-text version of any user's passphrase, instead the LUKS file
-	containers are encrypted with a key-file and the key-file itself is encrypted with
-	Salted AES-256-CBC PBKDF2 SHA512-digest encryption scheme using user's passphrase.
-
-	Remember that, even if a person/authority gets access to the server when the LUKS
-	devices are hot(mounted), a user cannot be fingerprinted to a particular hot LUKS device mount-point
-	on the server, since the implementation uses MD5-digest of the username UNLESS the person/authority 
-	has access to your username, in which case they can produce a MD5-digest of that username to
-	fingerprint the user's LUKS container and mount point. The clear-text version of 
-	keyfiles(temp for mounting a LUKS device) is shredded with 10 passes + overwrite with zeros.
-
-	Even during encrypted-on-rest, the LUKS images cannot be fingerprinted to a particular user, since again
-	we use the digested version(again, the caveat as mentioned above) and the original data cannot 
-	be retrieved if the LUKS image is NOT hot.
-
-	This repo/module is under active dev/testing. This module is specifically written to work with an
-	fully encrypted shared file-hosting application for my internal project. 
-	It's never written with an intention for public use.
-	But feel free to play around.
+The interface uses a unique keyfile for each user, which is encrypted at rest on the server using AES-256. The encryption key for the keyfile is derived from the user's passphrase via PBKDF2. Mount points are based on an MD5 digest, and the keyfile is securely shredded with 10 passes and zero-filled when the LUKS image is mounted.
